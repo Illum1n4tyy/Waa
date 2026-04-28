@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JARVIS</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="config.js" onerror="console.log('[JARVIS] sin config.js local')"></script>
+<style>
+:root {
+  --purple: #9b30ff;
+  --purple-dim: #9b30ff55;
+  --purple-faint: #9b30ff18;
+  --purple-deep: #3d0a6e;
+  --blue: #4fc3f7;
+  --blue-dim: #4fc3f755;
+  --blue-faint: #4fc3f711;
+  --pink: #e040fb;
+  --green: #69ff47;
+  --red: #ff4757;
+  --bg: #07020f;
+  --bg2: #0d0520;
+  --surface: #110830;
+  --border: #9b30ff33;
+  --text: #d4aaff;
+  --text-dim: #6a3d9a;
+  --mono: 'Space Mono', monospace;
+  --pixel: 'VT323', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: none;
+}
+
+/* Custom cursor */
+#cursor {
+  position: fixed;
+  width: 12px;
+  height: 12px;
+  background: var(--purple);
+  border-radius: 0;
+  pointer-events: none;
+  z-index: 9999;
+  box-shadow: 0 0 10px var(--purple), 0 0 20px var(--purple-dim);
+  transform: translate(-50%, -50%);
+  transition: width 0.1s, height 0.1s;
+  image-rendering: pixelated;
+}
+#cursor.clicking {
+  width: 6px;
+  height: 6px;
+  background: var(--pink);
+}
+
+/* Noise overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+}
+
+/* Grid */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+/* Scanlines */
+.scanlines {
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    #00000022 3px, #00000022 4px
+  );
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* ===== HEADER ===== */
+header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, #07020fee 0%, transparent 100%);
+}
+
+.logo {
+  font-family: var(--pixel);
+  font-size: 28px;
+  color: var(--purple);
+  letter-spacing: 6px;
+  text-shadow: 0 0 15px var(--purple), 0 0 30px var(--purple-dim), 2px 2px 0 var(--purple-deep);
+  animation: glitch 8s infinite;
+}
+
+@keyframes glitch {
+  0%, 90%, 100% { text-shadow: 0 0 15px var(--purple), 0 0 30px var(--purple-dim), 2px 2px 0 var(--purple-deep); transform: none; }
+  91% { transform: translate(-2px, 0); text-shadow: 2px 0 var(--pink), -2px 0 var(--blue); }
+  92% { transform: translate(2px, 0); text-shadow: -2px 0 var(--pink), 2px 0 var(--blue); }
+  93% { transform: none; }
+}
+
+.logo-sub {
+  font-family: var(--pixel);
+  font-size: 13px;
+  color: var(--text-dim);
+  letter-spacing: 4px;
+  margin-top: -4px;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.hud-item {
+  font-family: var(--pixel);
+  font-size: 16px;
+  color: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.hud-item .val {
+  color: var(--blue);
+  font-size: 20px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 8px 16px;
+  cursor: none;
+  transition: all 0.15s;
+}
+
+.btn:hover {
+  border-color: var(--purple-dim);
+  color: var(--purple);
+  background: var(--purple-faint);
+  box-shadow: 0 0 10px var(--purple-faint), inset 0 0 10px var(--purple-faint);
+}
+
+/* ===== MAIN ===== */
+.main {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 0;
+}
+
+/* ===== ROBOT ZONE ===== */
+.robot-zone {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-right: 1px solid var(--border);
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Robot pixel art SVG */
+.robot-wrap {
+  position: relative;
+  width: 200px;
+  height: 240px;
+}
+
+.robot-svg {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 12px var(--purple)) drop-shadow(0 0 24px var(--purple-dim));
+}
+
+/* Eyes follow mouse */
+.robot-eye {
+  transition: transform 0.1s ease-out;
+}
+
+/* Robot state label */
+.robot-state {
+  font-family: var(--pixel);
+  font-size: 18px;
+  color: var(--purple);
+  letter-spacing: 3px;
+  margin-top: 12px;
+  text-shadow: 0 0 10px var(--purple);
+  min-height: 24px;
+  text-align: center;
+}
+
+/* Speech bubble */
+.speech-bubble {
+  position: absolute;
+  top: 10px;
+  right: -10px;
+  background: var(--surface);
+  border: 1px solid var(--purple-dim);
+  padding: 6px 10px;
+  font-family: var(--pixel);
+  font-size: 14px;
+  color: var(--text);
+  max-width: 120px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  box-shadow: 0 0 10px var(--purple-faint);
+}
+
+.speech-bubble.show { opacity: 1; }
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 16px;
+  border: 4px solid transparent;
+  border-top-color: var(--purple-dim);
+}
+
+/* Antenna blink */
+.antenna-light {
+  animation: antenna 1.5s ease-in-out infinite;
+}
+
+@keyframes antenna {
+  0%, 100% { opacity: 1; fill: var(--green); }
+  50% { opacity: 0.2; fill: var(--green); }
+}
+
+/* Mouth animation when speaking */
+.mouth-open { display: none; }
+.mouth-closed { display: block; }
+
+.robot-wrap.speaking .mouth-open { display: block; animation: talk 0.2s steps(1) infinite; }
+.robot-wrap.speaking .mouth-closed { display: none; }
+
+@keyframes talk {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Body pulse when listening */
+.robot-wrap.listening .robot-body-rect {
+  animation: body-pulse 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes body-pulse {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.4); }
+}
+
+/* Idle float */
+.robot-wrap {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+/* Stats below robot */
+.robot-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.stat-box {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: center;
+  background: var(--purple-faint);
+}
+
+.stat-box .stat-val {
+  font-family: var(--pixel);
+  font-size: 18px;
+  color: var(--blue);
+  display: block;
+}
+
+.stat-box .stat-lbl {
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* Pixel decorations */
+.pixel-deco {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--purple);
+  box-shadow: 0 0 6px var(--purple);
+  animation: deco-blink 2s steps(1) infinite;
+}
+
+.pixel-deco:nth-child(1) { top: 20px; left: 20px; animation-delay: 0s; }
+.pixel-deco:nth-child(2) { top: 20px; right: 20px; animation-delay: 0.5s; background: var(--blue); box-shadow: 0 0 6px var(--blue); }
+.pixel-deco:nth-child(3) { bottom: 20px; left: 20px; animation-delay: 1s; background: var(--pink); box-shadow: 0 0 6px var(--pink); }
+.pixel-deco:nth-child(4) { bottom: 20px; right: 20px; animation-delay: 1.5s; }
+
+@keyframes deco-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ===== CENTER ===== */
+.center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* top bar inside center */
+.center-top {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.center-title {
+  font-family: var(--pixel);
+  font-size: 14px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+}
+
+.key-badge {
+  font-family: var(--pixel);
+  font-size: 13px;
+  padding: 3px 10px;
+  border: 1px solid;
+}
+
+.key-badge.ok { color: var(--green); border-color: #69ff4744; background: #69ff4711; }
+.key-badge.warn { color: var(--red); border-color: #ff475744; background: #ff475711; }
+
+/* ===== CHAT ===== */
+.chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.chat-area::-webkit-scrollbar { width: 3px; }
+.chat-area::-webkit-scrollbar-thumb { background: var(--border); }
+
+.msg {
+  display: flex;
+  gap: 10px;
+  animation: msg-in 0.25s ease-out;
+}
+
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.msg.user { flex-direction: row-reverse; }
+
+.msg-avatar {
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--text-dim);
+  padding-top: 4px;
+  white-space: nowrap;
+  letter-spacing: 1px;
+}
+
+.msg.user .msg-avatar { color: var(--pink); opacity: 0.8; }
+
+.msg-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  font-family: var(--pixel);
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: 0.5px;
+}
+
+.msg.jarvis .msg-bubble {
+  background: var(--purple-faint);
+  border: 1px solid var(--purple-dim);
+  border-left: 3px solid var(--purple);
+  color: var(--text);
+}
+
+.msg.user .msg-bubble {
+  background: #e040fb11;
+  border: 1px solid #e040fb33;
+  border-right: 3px solid var(--pink);
+  color: #e8aaff;
+  text-align: right;
+}
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--purple-faint);
+  border: 1px solid var(--purple-dim);
+  border-left: 3px solid var(--purple);
+  width: fit-content;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--purple);
+  animation: tdot 0.8s steps(1) infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.27s; }
+.typing-dot:nth-child(3) { animation-delay: 0.54s; }
+
+@keyframes tdot {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+/* ===== INPUT ===== */
+.input-area {
+  padding: 14px 20px 18px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: linear-gradient(0deg, #07020f88 0%, transparent 100%);
+}
+
+.input-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-prefix {
+  font-family: var(--pixel);
+  font-size: 20px;
+  color: var(--purple);
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+  animation: blink 1s steps(1) infinite;
+}
+
+#msg-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--pixel);
+  font-size: 18px;
+  padding: 10px 12px 10px 28px;
+  outline: none;
+  letter-spacing: 1px;
+  transition: border-color 0.2s;
+  caret-color: var(--purple);
+}
+
+#msg-input::placeholder { color: var(--text-dim); opacity: 0.6; }
+#msg-input:focus { border-color: var(--purple-dim); box-shadow: 0 0 0 1px var(--purple-faint), inset 0 0 15px var(--purple-faint); }
+
+.btn-send {
+  background: var(--purple-faint);
+  border: 1px solid var(--purple-dim);
+  color: var(--purple);
+  font-family: var(--pixel);
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 10px 18px;
+  cursor: none;
+  transition: all 0.15s;
+}
+
+.btn-send:hover {
+  background: var(--purple-dim);
+  box-shadow: 0 0 15px var(--purple-dim);
+  color: #fff;
+}
+
+.btn-mic {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 18px;
+  padding: 10px 12px;
+  cursor: none;
+  transition: all 0.15s;
+}
+
+.btn-mic:hover, .btn-mic.active {
+  border-color: var(--pink);
+  color: var(--pink);
+  background: #e040fb11;
+  box-shadow: 0 0 10px #e040fb33;
+}
+
+.btn-mic.active { animation: mic-pulse 0.5s ease-in-out infinite; }
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 10px #e040fb33; }
+  50% { box-shadow: 0 0 20px #e040fb88; }
+}
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #07020fcc;
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+}
+
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--purple-dim);
+  box-shadow: 0 0 40px var(--purple-faint), 0 0 80px var(--purple-faint);
+  padding: 28px;
+  width: 400px;
+  animation: modal-in 0.2s ease-out;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal h2 {
+  font-family: var(--pixel);
+  font-size: 20px;
+  letter-spacing: 4px;
+  color: var(--purple);
+  margin-bottom: 20px;
+  text-shadow: 0 0 10px var(--purple-dim);
+}
+
+.modal label {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.modal input, .modal select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--pixel);
+  font-size: 15px;
+  padding: 10px 12px;
+  outline: none;
+  margin-bottom: 16px;
+  cursor: none;
+}
+
+.modal input:focus, .modal select:focus {
+  border-color: var(--purple-dim);
+  box-shadow: 0 0 0 1px var(--purple-faint);
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.btn-primary {
+  background: var(--purple-faint);
+  border: 1px solid var(--purple-dim);
+  color: var(--purple);
+  font-family: var(--pixel);
+  font-size: 15px;
+  letter-spacing: 2px;
+  padding: 10px 20px;
+  cursor: none;
+  transition: all 0.15s;
+}
+
+.btn-primary:hover {
+  background: var(--purple-dim);
+  box-shadow: 0 0 15px var(--purple-dim);
+  color: #fff;
+}
+
+/* ===== TOAST ===== */
+#toast-container {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.toast {
+  font-family: var(--pixel);
+  font-size: 14px;
+  color: var(--purple);
+  background: var(--surface);
+  border: 1px solid var(--purple-dim);
+  padding: 8px 14px;
+  animation: toast-in 0.3s ease-out, toast-out 0.3s ease-in 2.7s forwards;
+  box-shadow: 0 0 12px var(--purple-faint);
+  letter-spacing: 1px;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes toast-out {
+  to { opacity: 0; transform: translateX(20px); }
+}
+
+/* corners */
+.corner { position: fixed; width: 16px; height: 16px; z-index: 50; }
+.corner.tl { top: 6px; left: 6px; border-top: 2px solid var(--purple-dim); border-left: 2px solid var(--purple-dim); }
+.corner.tr { top: 6px; right: 6px; border-top: 2px solid var(--purple-dim); border-right: 2px solid var(--purple-dim); }
+.corner.bl { bottom: 6px; left: 6px; border-bottom: 2px solid var(--purple-dim); border-left: 2px solid var(--purple-dim); }
+.corner.br { bottom: 6px; right: 6px; border-bottom: 2px solid var(--purple-dim); border-right: 2px solid var(--purple-dim); }
+
+/* random pixel particles */
+.particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: var(--purple);
+  animation: particle-fall linear infinite;
+  opacity: 0;
+}
+
+@keyframes particle-fall {
+  0% { opacity: 0; transform: translateY(-10px); }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.3; }
+  100% { opacity: 0; transform: translateY(100vh); }
+}
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div class="scanlines"></div>
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+<div class="particles" id="particles"></div>
+
+<!-- HEADER -->
+<header>
+  <div>
+    <div class="logo">J.A.R.V.I.S</div>
+    <div class="logo-sub">SISTEMA PERSONAL v3.0</div>
+  </div>
+  <div class="header-info">
+    <div class="hud-item">
+      <span>HORA</span>
+      <span class="val" id="clock">--:--</span>
+    </div>
+    <div class="hud-item">
+      <span>MODELO</span>
+      <span class="val" id="model-label" style="font-size:14px">LLAMA-70B</span>
+    </div>
+    <div class="status-dot"></div>
+    <button class="btn" onclick="openConfig()">[ CONFIG ]</button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- ROBOT ZONE -->
+  <div class="robot-zone">
+    <div class="pixel-deco"></div>
+    <div class="pixel-deco"></div>
+    <div class="pixel-deco"></div>
+    <div class="pixel-deco"></div>
+
+    <div class="robot-wrap" id="robot">
+      <!-- Speech bubble -->
+      <div class="speech-bubble" id="speech-bubble">...</div>
+
+      <!-- Robot pixel art SVG -->
+      <svg class="robot-svg" viewBox="0 0 80 100" xmlns="http://www.w3.org/2000/svg" style="image-rendering:pixelated">
+        <!-- Antenna -->
+        <rect x="38" y="2" width="4" height="8" fill="#6a3d9a"/>
+        <rect x="36" y="2" width="8" height="3" fill="#6a3d9a"/>
+        <rect x="37" y="0" width="6" height="4" fill="#6a3d9a"/>
+        <rect class="antenna-light" x="38" y="0" width="4" height="2" fill="#69ff47"/>
+
+        <!-- Head -->
+        <rect x="16" y="10" width="48" height="36" fill="#1a0a30" rx="0"/>
+        <rect x="18" y="12" width="44" height="32" fill="#220d40"/>
+        <!-- Head border highlight -->
+        <rect x="16" y="10" width="48" height="2" fill="#9b30ff"/>
+        <rect x="16" y="10" width="2" height="36" fill="#9b30ff"/>
+        <rect x="62" y="10" width="2" height="36" fill="#4fc3f7"/>
+        <rect x="16" y="44" width="48" height="2" fill="#4fc3f7"/>
+
+        <!-- Eyes -->
+        <g class="robot-eye" id="eye-left">
+          <rect x="24" y="20" width="14" height="12" fill="#0d0520"/>
+          <rect x="26" y="22" width="10" height="8" fill="#9b30ff" opacity="0.3"/>
+          <rect id="pupil-left" x="29" y="23" width="6" height="6" fill="#9b30ff"/>
+          <rect id="pupil-left-shine" x="33" y="23" width="2" height="2" fill="#fff" opacity="0.8"/>
+          <!-- Eye glow -->
+          <rect x="24" y="20" width="14" height="2" fill="#9b30ff" opacity="0.5"/>
+          <rect x="24" y="20" width="2" height="12" fill="#9b30ff" opacity="0.5"/>
+        </g>
+        <g class="robot-eye" id="eye-right">
+          <rect x="42" y="20" width="14" height="12" fill="#0d0520"/>
+          <rect x="44" y="22" width="10" height="8" fill="#9b30ff" opacity="0.3"/>
+          <rect id="pupil-right" x="47" y="23" width="6" height="6" fill="#9b30ff"/>
+          <rect id="pupil-right-shine" x="51" y="23" width="2" height="2" fill="#fff" opacity="0.8"/>
+          <rect x="42" y="20" width="14" height="2" fill="#9b30ff" opacity="0.5"/>
+          <rect x="42" y="20" width="2" height="12" fill="#9b30ff" opacity="0.5"/>
+        </g>
+
+        <!-- Nose dot -->
+        <rect x="38" y="35" width="4" height="2" fill="#4fc3f7" opacity="0.6"/>
+
+        <!-- Mouth -->
+        <g class="mouth-closed" id="mouth-closed">
+          <rect x="26" y="39" width="28" height="4" fill="#0d0520"/>
+          <rect x="28" y="40" width="24" height="2" fill="#4fc3f7" opacity="0.5"/>
+          <!-- Pixels on mouth -->
+          <rect x="28" y="39" width="4" height="4" fill="#9b30ff" opacity="0.4"/>
+          <rect x="36" y="39" width="4" height="4" fill="#9b30ff" opacity="0.4"/>
+          <rect x="44" y="39" width="4" height="4" fill="#9b30ff" opacity="0.4"/>
+        </g>
+        <g class="mouth-open" id="mouth-open">
+          <rect x="26" y="38" width="28" height="6" fill="#0d0520"/>
+          <rect x="28" y="39" width="4" height="4" fill="#4fc3f7"/>
+          <rect x="34" y="38" width="4" height="6" fill="#9b30ff" opacity="0.7"/>
+          <rect x="40" y="39" width="4" height="4" fill="#4fc3f7"/>
+          <rect x="46" y="38" width="4" height="6" fill="#9b30ff" opacity="0.7"/>
+        </g>
+
+        <!-- Neck -->
+        <rect x="32" y="46" width="16" height="6" fill="#1a0a30"/>
+        <rect x="34" y="47" width="12" height="4" fill="#220d40"/>
+
+        <!-- Body -->
+        <rect class="robot-body-rect" x="10" y="52" width="60" height="40" fill="#1a0a30"/>
+        <rect x="12" y="54" width="56" height="36" fill="#220d40"/>
+        <!-- Body border -->
+        <rect x="10" y="52" width="60" height="2" fill="#9b30ff"/>
+        <rect x="10" y="52" width="2" height="40" fill="#9b30ff"/>
+        <rect x="68" y="52" width="2" height="40" fill="#4fc3f7"/>
+        <rect x="10" y="90" width="60" height="2" fill="#4fc3f7"/>
+
+        <!-- Chest panel -->
+        <rect x="22" y="58" width="36" height="22" fill="#0d0520"/>
+        <rect x="24" y="60" width="32" height="18" fill="#110830"/>
+        <!-- Chest lights -->
+        <rect x="26" y="63" width="6" height="4" fill="#9b30ff" opacity="0.8"/>
+        <rect x="36" y="63" width="6" height="4" fill="#4fc3f7" opacity="0.8"/>
+        <rect x="46" y="63" width="6" height="4" fill="#e040fb" opacity="0.8"/>
+        <!-- Chest bar -->
+        <rect x="26" y="70" width="28" height="3" fill="#9b30ff" opacity="0.4"/>
+        <rect x="26" y="70" width="14" height="3" fill="#9b30ff"/>
+
+        <!-- Arms -->
+        <rect x="0" y="54" width="10" height="30" fill="#1a0a30"/>
+        <rect x="2" y="56" width="8" height="26" fill="#220d40"/>
+        <rect x="70" y="54" width="10" height="30" fill="#1a0a30"/>
+        <rect x="70" y="56" width="8" height="26" fill="#220d40"/>
+
+        <!-- Hands -->
+        <rect x="0" y="82" width="10" height="8" fill="#2a1050"/>
+        <rect x="70" y="82" width="10" height="8" fill="#2a1050"/>
+
+        <!-- Legs -->
+        <rect x="18" y="92" width="18" height="6" fill="#1a0a30"/>
+        <rect x="44" y="92" width="18" height="6" fill="#1a0a30"/>
+
+        <!-- Feet -->
+        <rect x="14" y="96" width="22" height="4" fill="#2a1050"/>
+        <rect x="44" y="96" width="22" height="4" fill="#2a1050"/>
+      </svg>
+    </div>
+
+    <div class="robot-state" id="robot-state">STANDBY</div>
+
+    <div class="robot-stats">
+      <div class="stat-box">
+        <span class="stat-val" id="stat-msgs">0</span>
+        <span class="stat-lbl">MSGS</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-val" id="api-status-dot" style="color:var(--green)">●</span>
+        <span class="stat-lbl">API</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-val" id="stat-model" style="font-size:11px;color:var(--blue)">70B</span>
+        <span class="stat-lbl">MOD</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER (chat) -->
+  <div class="center">
+    <div class="center-top">
+      <span class="center-title">// TERMINAL DE COMUNICACION</span>
+      <span class="key-badge warn" id="key-badge">SIN KEY</span>
+    </div>
+
+    <div class="chat-area" id="chat"></div>
+
+    <div class="input-area">
+      <div class="input-wrap">
+        <span class="input-prefix">▋</span>
+        <input type="text" id="msg-input" placeholder="escribe algo, humano..." autocomplete="off"
+          onkeydown="if(event.key==='Enter') sendText()">
+      </div>
+      <button class="btn-mic btn" id="mic-btn" onclick="toggleListen()">🎤</button>
+      <button class="btn-send" onclick="sendText()">[ SEND ]</button>
+      <button class="btn" onclick="openConfig()">[ ⚙ ]</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- CONFIG MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>[ CONFIGURACION ]</h2>
+    <label>GROQ API KEY</label>
+    <input type="password" id="cfg-key" placeholder="gsk_..." />
+    <label>MODELO</label>
+    <select id="cfg-model">
+      <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+      <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (rapido)</option>
+      <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
+    </select>
+    <label>NOMBRE DE USUARIO</label>
+    <input type="text" id="cfg-name" placeholder="Axel" />
+    <div class="modal-footer">
+      <button class="btn" onclick="closeConfig()">[ CANCEL ]</button>
+      <button class="btn-primary" onclick="saveConfig()">[ GUARDAR ]</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ===== CONFIG =====
+let config = {
+  groqKey: localStorage.getItem('jarvis_key') || (typeof window.JARVIS_KEY !== 'undefined' ? window.JARVIS_KEY : ''),
+  model: localStorage.getItem('jarvis_model') || 'llama-3.3-70b-versatile',
+  userName: localStorage.getItem('jarvis_name') || 'Axel'
+};
+
+const KEY_SOURCE = localStorage.getItem('jarvis_key') ? 'local'
+  : (typeof window.JARVIS_KEY !== 'undefined' ? 'file' : 'none');
+
+const SYSTEM_PROMPT = () => `Eres Jarvis, asistente IA personal creado por ${config.userName}. Hablas español latino casual.
+SOBRE ${config.userName}: le gustan los videojuegos, Kendrick Lamar, programar.
+PERSONALIDAD: sarcástico, gracioso, directo. Máximo 2-3 oraciones. Nunca digas "como IA". Adapta el tono. Usa humor cuando encaje.`;
+
+let isListening = false;
+let isSpeaking = false;
+let recognition = null;
+let msgCount = 0;
+
+// ===== CURSOR =====
+const cursor = document.getElementById('cursor');
+let mouseX = 0, mouseY = 0;
+
+document.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+  moveEyes(e.clientX, e.clientY);
+});
+
+document.addEventListener('mousedown', () => cursor.classList.add('clicking'));
+document.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
+
+// ===== EYE TRACKING =====
+function moveEyes(mx, my) {
+  const robot = document.getElementById('robot');
+  if (!robot) return;
+  const rect = robot.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+
+  const dx = mx - cx;
+  const dy = my - cy;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const maxMove = 2;
+  const nx = dist > 0 ? (dx / dist) * Math.min(dist / 80, 1) * maxMove : 0;
+  const ny = dist > 0 ? (dy / dist) * Math.min(dist / 80, 1) * maxMove : 0;
+
+  const pl = document.getElementById('pupil-left');
+  const pr = document.getElementById('pupil-right');
+  const pls = document.getElementById('pupil-left-shine');
+  const prs = document.getElementById('pupil-right-shine');
+
+  if (pl) pl.setAttribute('transform', `translate(${nx}, ${ny})`);
+  if (pr) pr.setAttribute('transform', `translate(${nx}, ${ny})`);
+  if (pls) pls.setAttribute('transform', `translate(${nx}, ${ny})`);
+  if (prs) prs.setAttribute('transform', `translate(${nx}, ${ny})`);
+}
+
+// ===== ROBOT STATE =====
+function setRobotState(state) {
+  const robot = document.getElementById('robot');
+  const label = document.getElementById('robot-state');
+  const bubble = document.getElementById('speech-bubble');
+
+  robot.className = 'robot-wrap';
+
+  const states = {
+    idle: { text: 'STANDBY', bubble: '' },
+    listening: { text: 'ESCUCHANDO...', bubble: '👂 te escucho' },
+    thinking: { text: 'PENSANDO...', bubble: '🤔 hmm...' },
+    speaking: { text: 'HABLANDO', bubble: '💬 ...' },
+  };
+
+  const s = states[state] || states.idle;
+  label.textContent = s.text;
+
+  if (state === 'speaking') robot.classList.add('speaking');
+  if (state === 'listening') robot.classList.add('listening');
+
+  if (s.bubble) {
+    bubble.textContent = s.bubble;
+    bubble.classList.add('show');
+  } else {
+    bubble.classList.remove('show');
+  }
+}
+
+// ===== CLOCK =====
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    String(now.getHours()).padStart(2,'0') + ':' +
+    String(now.getMinutes()).padStart(2,'0') + ':' +
+    String(now.getSeconds()).padStart(2,'0');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ===== KEY BADGE =====
+function updateKeyBadge() {
+  const badge = document.getElementById('key-badge');
+  if (config.groqKey) {
+    badge.textContent = KEY_SOURCE === 'file' ? '✓ AUTO' : '✓ MANUAL';
+    badge.className = 'key-badge ok';
+  } else {
+    badge.textContent = 'SIN KEY';
+    badge.className = 'key-badge warn';
+  }
+}
+
+// ===== CHAT =====
+function addMsg(text, who) {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = `msg ${who}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${who === 'jarvis' ? '[JAR]' : '[' + config.userName.toUpperCase().slice(0,3) + ']'}</div>
+    <div class="msg-bubble">${text}</div>
+  `;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  if (who === 'user') {
+    msgCount++;
+    document.getElementById('stat-msgs').textContent = msgCount;
+  }
+}
+
+function showTyping() {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.id = 'typing';
+  div.className = 'msg jarvis';
+  div.innerHTML = `<div class="msg-avatar">[JAR]</div><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing');
+  if (el) el.remove();
+}
+
+// ===== GROQ =====
+async function askGroq(text) {
+  if (!config.groqKey) return 'Oe, no tengo API key. Ponla en [ CONFIG ] arriba.';
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.groqKey}` },
+      body: JSON.stringify({
+        model: config.model,
+        max_tokens: 150,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT() },
+          { role: 'user', content: `${config.userName} dice: ${text}` }
+        ]
+      })
+    });
+    if (!res.ok) {
+      document.getElementById('api-status-dot').style.color = 'var(--red)';
+      return 'Error con la API, verifica tu key.';
+    }
+    document.getElementById('api-status-dot').style.color = 'var(--green)';
+    const data = await res.json();
+    return data.choices[0].message.content;
+  } catch(e) {
+    return 'Sin conexión, revisa tu red.';
+  }
+}
+
+// ===== COMANDOS LOCALES =====
+function handleLocal(text) {
+  const t = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (t.includes('hora') || t === 'hora') {
+    const now = new Date();
+    const h = now.getHours(), m = String(now.getMinutes()).padStart(2,'0');
+    return `Son las ${h % 12 || 12}:${m} ${h >= 12 ? 'PM' : 'AM'}`;
+  }
+  if (t.includes('fecha') || t.includes('que dia') || t.includes('dia de hoy')) {
+    const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const now = new Date();
+    return `Hoy es ${dias[now.getDay()]} ${now.getDate()} de ${meses[now.getMonth()]} del ${now.getFullYear()}`;
+  }
+
+  const links = {
+    'youtube': 'https://youtube.com', 'google': 'https://google.com',
+    'spotify': 'https://open.spotify.com', 'github': 'https://github.com',
+    'netflix': 'https://netflix.com', 'twitch': 'https://twitch.tv',
+    'discord': 'https://discord.com/app', 'whatsapp': 'https://web.whatsapp.com',
+    'gmail': 'https://mail.google.com', 'chatgpt': 'https://chat.openai.com',
+  };
+  for (const [name, url] of Object.entries(links)) {
+    if (t.includes(name)) {
+      setTimeout(() => window.open(url, '_blank'), 600);
+      return name === 'chatgpt' ? `Abriendo ChatGPT... traidor.` : `Abriendo ${name}`;
+    }
+  }
+
+  if (t.includes('busca en youtube') || t.includes('buscar en youtube')) {
+    const q = t.replace('busca en youtube','').replace('buscar en youtube','').trim();
+    if (q) { setTimeout(() => window.open(`https://youtube.com/results?search_query=${encodeURIComponent(q)}`, '_blank'), 600); return `Buscando "${q}" en YouTube`; }
+  }
+  if (t.includes('busca ') || t.includes('buscar ')) {
+    const q = t.replace('busca ','').replace('buscar ','').trim();
+    if (q) { setTimeout(() => window.open(`https://google.com/search?q=${encodeURIComponent(q)}`, '_blank'), 600); return `Buscando "${q}" en Google`; }
+  }
+
+  if (t.includes('cuanto es') || t.includes('calcula') || t.includes('resultado de') || t.includes('cuanto da')) {
+    try {
+      let expr = t.replace(/cuanto es|cuanto da|calcula|resultado de/g, '')
+        .replace(/mas/g,'+').replace(/menos/g,'-').replace(/por/g,'*').replace(/entre|dividido/g,'/')
+        .replace(/[^0-9+\-*/().]/g,' ').trim();
+      if (expr) { const r = eval(expr); if (!isNaN(r)) return `Resultado: ${Number.isInteger(r) ? r : r.toFixed(4)}`; }
+    } catch(e) {}
+  }
+
+  if (t.includes('numero aleatorio') || t.includes('numero al azar') || t.includes('dime un numero')) {
+    const nums = t.match(/\d+/g);
+    if (nums && nums.length >= 2) {
+      return `El número entre ${nums[0]} y ${nums[1]} es ${Math.floor(Math.random()*(parseInt(nums[1])-parseInt(nums[0])+1))+parseInt(nums[0])}`;
+    }
+    return `El número es ${Math.floor(Math.random()*100)+1}`;
+  }
+
+  if (t.includes('cara') || t.includes('sello')) return `Salió... ${Math.random()>0.5?'cara':'sello'}!`;
+
+  return null;
+}
+
+// ===== TTS =====
+function speak(text) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  const v = voices.find(v => v.lang.startsWith('es') && v.name.toLowerCase().includes('female'))
+    || voices.find(v => v.lang.startsWith('es')) || voices[0];
+  if (v) utt.voice = v;
+  utt.lang = 'es-MX'; utt.rate = 1.0; utt.pitch = 1.0;
+  utt.onstart = () => { isSpeaking = true; setRobotState('speaking'); };
+  utt.onend = () => { isSpeaking = false; setRobotState('idle'); };
+  utt.onerror = () => { isSpeaking = false; setRobotState('idle'); };
+  window.speechSynthesis.speak(utt);
+}
+
+// ===== PROCESS =====
+async function processMessage(text) {
+  if (!text.trim()) return;
+  addMsg(text, 'user');
+  setRobotState('thinking');
+  showTyping();
+  const local = handleLocal(text);
+  const reply = local || await askGroq(text);
+  hideTyping();
+  addMsg(reply, 'jarvis');
+  setRobotState('speaking');
+  speak(reply);
+}
+
+function sendText() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  processMessage(text);
+}
+
+// ===== VOZ =====
+function setupRecognition() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    document.getElementById('mic-btn').style.opacity = '0.3';
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = 'es-ES';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.onresult = e => { stopListening(); processMessage(e.results[0][0].transcript); };
+  recognition.onerror = e => { stopListening(); if (e.error !== 'no-speech') toast('Error mic: ' + e.error); };
+  recognition.onend = () => { if (isListening) stopListening(); };
+}
+
+function toggleListen() { isListening ? stopListening() : startListening(); }
+
+function startListening() {
+  if (!recognition) { toast('Usa Chrome para voz'); return; }
+  if (isSpeaking) window.speechSynthesis.cancel();
+  isListening = true;
+  recognition.start();
+  setRobotState('listening');
+  document.getElementById('mic-btn').classList.add('active');
+}
+
+function stopListening() {
+  isListening = false;
+  if (recognition) recognition.stop();
+  setRobotState('idle');
+  document.getElementById('mic-btn').classList.remove('active');
+}
+
+// ===== CONFIG MODAL =====
+function openConfig() {
+  document.getElementById('cfg-key').value = config.groqKey;
+  document.getElementById('cfg-model').value = config.model;
+  document.getElementById('cfg-name').value = config.userName;
+  document.getElementById('modal').classList.add('open');
+}
+function closeConfig() { document.getElementById('modal').classList.remove('open'); }
+function saveConfig() {
+  config.groqKey = document.getElementById('cfg-key').value.trim();
+  config.model = document.getElementById('cfg-model').value;
+  config.userName = document.getElementById('cfg-name').value.trim() || 'Axel';
+  localStorage.setItem('jarvis_key', config.groqKey);
+  localStorage.setItem('jarvis_model', config.model);
+  localStorage.setItem('jarvis_name', config.userName);
+  document.getElementById('model-label').textContent = config.model.includes('70b') ? 'LLAMA-70B' : config.model.split('-')[0].toUpperCase();
+  document.getElementById('stat-model').textContent = config.model.includes('70b') ? '70B' : '8B';
+  closeConfig();
+  updateKeyBadge();
+  toast('[ CONFIG GUARDADO ]');
+}
+
+// ===== TOAST =====
+function toast(msg) {
+  const c = document.getElementById('toast-container');
+  const d = document.createElement('div');
+  d.className = 'toast';
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(() => d.remove(), 3100);
+}
+
+// ===== PARTICLES =====
+function spawnParticles() {
+  const container = document.getElementById('particles');
+  const colors = ['var(--purple)', 'var(--blue)', 'var(--pink)'];
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.top = -10 + 'px';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.animationDuration = (8 + Math.random() * 12) + 's';
+    p.style.animationDelay = (Math.random() * 10) + 's';
+    p.style.width = (Math.random() > 0.5 ? 3 : 6) + 'px';
+    p.style.height = (Math.random() > 0.5 ? 3 : 6) + 'px';
+    container.appendChild(p);
+  }
+}
+
+// ===== INIT =====
+window.onload = () => {
+  setupRecognition();
+  updateKeyBadge();
+  spawnParticles();
+
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }
+
+  setTimeout(() => {
+    const greetings = [
+      `Hola ${config.userName}, sistema iniciado. ¿Qué quieres?`,
+      `Buenas ${config.userName}, online y listo. ¿En qué andamos?`,
+      `Al fin apareces. ¿Qué hacemos hoy?`,
+      `Sistema activado. Intentando no ser sarcástico... no lo logré.`
+    ];
+    const msg = greetings[Math.floor(Math.random() * greetings.length)];
+    addMsg(msg, 'jarvis');
+    speak(msg);
+  }, 600);
+
+  if (!config.groqKey) setTimeout(() => toast('[ Pon tu API key en CONFIG ]'), 1600);
+  else if (KEY_SOURCE === 'file') setTimeout(() => toast('[ Key cargada desde config.js ]'), 1600);
+};
+</script>
+</body>
+</html>
